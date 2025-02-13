@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Currency Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-lg bg-white shadow-xl rounded-2xl overflow-hidden p-6">
+        <!-- Header -->
+        <div class="bg-indigo-700 p-5 flex items-center justify-center text-white text-2xl font-bold rounded-t-2xl">
+            Currency Converter
+        </div>
+        
+        <!-- Base Currency Selection -->
+        <div class="p-5 bg-indigo-600 text-white rounded-lg">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <img id="baseCurrencyFlag" src="https://flagcdn.com/w80/us.png" class="w-12 h-8" alt="USD Flag">
+                    <div>
+                        <p id="baseCurrencyName" class="text-xl font-semibold">United States Dollar</p>
+                        <p class="text-md text-gray-300" id="baseCurrencyCode">USD</p>
+                    </div>
+                </div>
+                <button id="changeBaseCurrencyBtn" class="bg-white text-indigo-600 px-4 py-2 rounded-lg text-lg">Change Currency</button>
+            </div>
+
+            <!-- Dropdown for Base Currency -->
+            <div id="baseCurrencyDropdown" class="hidden mt-3">
+                <select id="baseCurrencySelect" class="w-full bg-indigo-500 p-3 rounded-lg text-white text-lg">
+                    <!-- Options will be added dynamically -->
+                </select>
+            </div>
+        </div>
+
+        <!-- Currency Amount -->
+        <div class="p-5 bg-indigo-600 text-white flex justify-between items-center rounded-lg mt-4">
+            <span class="text-xl">Amount:</span>
+            <input type="number" id="amount" value="1" class="text-2xl text-right bg-transparent border-none focus:outline-none w-40" step="0.01" min="0.01" oninput="updateRates()">
+        </div>
+
+        <!-- Exchange Rates -->
+        <div id="ratesList" class="p-5"></div>
+
+        <!-- Add Additional Currencies -->
+        <div id="addCurrencyContainer" class="p-5">
+            <h3 class="text-xl font-semibold">Add More Currencies</h3>
+            <button id="addCurrencyButton" class="bg-indigo-600 text-white p-3 rounded-lg mt-3 w-full text-lg">Add Currency</button>
+        </div>
+
+        <!-- Hidden Search Bar for Adding New Currencies -->
+        <div id="currencySearchContainer" class="hidden p-5">
+            <input type="text" id="currencySearch" placeholder="Search for a currency..." class="w-full p-3 border rounded-lg text-lg">
+            <ul id="currencyList" class="max-h-60 overflow-y-auto bg-white shadow-lg rounded-lg mt-2"></ul>
+        </div>
+    </div>
+
+    <script>
+        const mainCurrencies = ["eur", "gbp", "jpy", "chf", "inr", "cad"];
+        let selectedCurrencies = [...mainCurrencies];
+        let baseCurrency = "usd"; 
+        let ratesData = {}; 
+        let allCurrencies = {};
+
+        const flagMapping = {
+            gbp: "gb", usd: "us", eur: "eu", inr: "in", jpy: "jp", chf: "ch", cad: "ca"
+        };
+
+        function getFlagUrl(code) {
+            return `https://flagcdn.com/w80/${flagMapping[code] || code.slice(0, 2)}.png`;
+        }
+
+        async function fetchCurrencies() {
+            try {
+                const response = await fetch("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies.json");
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error("Error fetching currencies:", error);
+                return {}; // Fallback to empty object on error
+            }
+        }
+
+        async function fetchRates(base = "usd") {
+            try {
+                const response = await fetch(`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${base}.json`);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error("Error fetching rates:", error);
+                return {}; // Fallback to empty object on error
+            }
+        }
+
+        function updateBaseCurrencyDisplay() {
+            document.getElementById("baseCurrencyFlag").src = getFlagUrl(baseCurrency);
+            document.getElementById("baseCurrencyName").textContent = allCurrencies[baseCurrency] || baseCurrency.toUpperCase();
+            document.getElementById("baseCurrencyCode").textContent = baseCurrency.toUpperCase();
+        }
+
+        async function updateRates() {
+            const amount = parseFloat(document.getElementById("amount").value) || 1; 
+            ratesData = await fetchRates(baseCurrency);
+            const ratesList = document.getElementById("ratesList");
+            ratesList.innerHTML = "";
+
+            selectedCurrencies.forEach(code => {
+                if (ratesData[baseCurrency][code]) {
+                    const converted = (amount * ratesData[baseCurrency][code]).toFixed(2);
+                    ratesList.innerHTML += `
+                        <div class='flex items-center justify-between p-4 border-b text-lg'>
+                            <div class='flex items-center gap-4'>
+                                <img src='${getFlagUrl(code)}' class='w-12 h-8'>
+                                <div>
+                                    <p class='text-xl font-semibold'>${allCurrencies[code]}</p>
+                                    <p class='text-md text-gray-600'>1 ${baseCurrency.toUpperCase()} = ${ratesData[baseCurrency][code].toFixed(2)} ${code.toUpperCase()}</p>
+                                </div>
+                            </div>
+                            <input type="number" value="${converted}" id="currency-${code}" class="text-xl text-right bg-transparent border-none focus:outline-none w-32" step="0.01" min="0" oninput="updateConvertedValue('${code}')">
+                            <button onclick="removeCurrency('${code}')" class="text-red-500 ml-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>`;
+                }
+            });
+        }
+
+        function updateConvertedValue(currencyCode) {
+            const inputElement = document.getElementById(`currency-${currencyCode}`);
+            const inputValue = parseFloat(inputElement.value) || 0;
+            const currencyRate = ratesData[baseCurrency][currencyCode];
+
+            selectedCurrencies.forEach(code => {
+                if (ratesData[baseCurrency][code]) {
+                    const updatedValue = (inputValue / currencyRate * ratesData[baseCurrency][code]).toFixed(2);
+                    const currencyInput = document.getElementById(`currency-${code}`);
+                    if (currencyInput) {
+                        currencyInput.value = updatedValue;
+                    }
+                }
+            });
+        }
+
+        function updateBaseCurrencyList(query = "") {
+            const baseCurrencyList = document.getElementById("baseCurrencyList");
+            baseCurrencyList.innerHTML = "";
+            baseCurrencyList.classList.remove("hidden");
+
+            Object.keys(allCurrencies).forEach(code => {
+                if (code.includes(query.toLowerCase()) || allCurrencies[code].toLowerCase().includes(query.toLowerCase())) {
+                    const listItem = document.createElement("li");
+                    listItem.textContent = `${code.toUpperCase()} - ${allCurrencies[code]}`;
+                    listItem.classList.add("cursor-pointer", "p-2", "hover:bg-indigo-100");
+                    listItem.addEventListener("click", () => {
+                        baseCurrency = code;
+                        updateBaseCurrencyDisplay();
+                        updateRates();
+                        baseCurrencyList.classList.add("hidden");
+                        document.getElementById("baseCurrencySearch").value = "";
+                    });
+                    baseCurrencyList.appendChild(listItem);
+                }
+            });
+            baseCurrencyList.classList.remove("hidden");
+        }
+
+        async function updateCurrencyList(query = "") {
+            const currencyList = document.getElementById("currencyList");
+            currencyList.innerHTML = "";
+            Object.keys(allCurrencies).forEach(code => {
+                if (!selectedCurrencies.includes(code)) {
+                    if (code.includes(query.toLowerCase()) || allCurrencies[code].toLowerCase().includes(query.toLowerCase())) {
+                        const listItem = document.createElement("li");
+                        listItem.textContent = `${code.toUpperCase()} - ${allCurrencies[code]}`;
+                        listItem.classList.add("cursor-pointer", "p-3", "hover:bg-indigo-100");
+                        listItem.addEventListener("click", () => {
+                            selectedCurrencies.push(code);
+                            updateRates();
+                            document.getElementById("currencySearchContainer").classList.add("hidden");
+                        });
+                        currencyList.appendChild(listItem);
+                    }
+                }
+            });
+            currencyList.classList.remove("hidden");
+        }
+
+        function populateCurrencyDropdown() {
+            const baseCurrencySelect = document.getElementById("baseCurrencySelect");
+            baseCurrencySelect.innerHTML = ''; // Clear any existing options
+            Object.keys(allCurrencies).forEach(code => {
+                const option = document.createElement("option");
+                option.value = code;
+                option.textContent = `${code.toUpperCase()} - ${allCurrencies[code]}`;
+                baseCurrencySelect.appendChild(option);
+            });
+        }
+
+        function removeCurrency(currencyCode) {
+            selectedCurrencies = selectedCurrencies.filter(code => code !== currencyCode);
+            updateRates();
+        }
+
+        async function initialize() {
+            allCurrencies = await fetchCurrencies();
+            updateBaseCurrencyDisplay();
+            updateRates();
+            populateCurrencyDropdown(); // Populate the dropdown with all currencies
+        }
+
+        document.getElementById("changeBaseCurrencyBtn").addEventListener("click", () => {
+            // Toggle visibility of the dropdown menu
+            const dropdown = document.getElementById("baseCurrencyDropdown");
+            dropdown.classList.toggle("hidden");
+        });
+
+        document.getElementById("baseCurrencySelect").addEventListener("change", (e) => {
+            baseCurrency = e.target.value;
+            updateBaseCurrencyDisplay();
+            updateRates();
+            document.getElementById("baseCurrencyDropdown").classList.add("hidden");
+        });
+
+        document.getElementById("addCurrencyButton").addEventListener("click", () => {
+            document.getElementById("currencySearchContainer").classList.toggle("hidden");
+            document.getElementById("currencySearch").focus();
+        });
+
+        document.getElementById("currencySearch").addEventListener("input", (e) => updateCurrencyList(e.target.value));
+
+        document.addEventListener("click", (event) => {
+            const searchContainer = document.getElementById("currencySearchContainer");
+            const searchBox = document.getElementById("currencySearch");
+            const searchList = document.getElementById("currencyList");
+
+            const baseSearchContainer = document.getElementById("baseCurrencySearchContainer");
+            const baseSearchBox = document.getElementById("baseCurrencySearch");
+            const baseSearchList = document.getElementById("baseCurrencyList");
+
+            if (!searchContainer.contains(event.target) && !searchBox.contains(event.target) && !searchList.contains(event.target)) {
+                searchList.classList.add("hidden");
+            }
+
+            if (!baseSearchContainer.contains(event.target) && !baseSearchBox.contains(event.target) && !baseSearchList.contains(event.target)) {
+                baseSearchList.classList.add("hidden");
+            }
+        });
+
+        initialize();
+    </script>
+</body>
+</html>
